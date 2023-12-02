@@ -63,8 +63,3 @@ class Network(nx.DiGraph):
         
         for i, node in enumerate(self.nodes):
             node.id = i
-
-    def statevector(self):
-        '''generate the empty statevector corresponding to the network'''
-
-        return np.zeros(self.number_of_nodes()*2, dtype=np.int32) # *2 due to allocation for two types of entities at each node
