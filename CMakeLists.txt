@@ -1,7 +1,16 @@
 cmake_minimum_required(VERSION 3.12)
 project(simbackend)
 
+# Specify the path to the Python executable
+set(Python3_EXECUTABLE "/home/daniel/anaconda3/envs/py311/bin/python") # This will give you errors, replace with your own path!!!
+
+# Specify the Python version
+find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter Development)
+
 find_package(pybind11 REQUIRED)
+
+# Include Python headers
+include_directories(${Python3_INCLUDE_DIRS})
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/..)
 

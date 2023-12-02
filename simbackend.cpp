@@ -253,8 +253,8 @@ void sim_gillespie(
 
 
 // PYBIND // 
-PYBIND11_MODULE(libsdesim, m)
+PYBIND11_MODULE(libsimbackend, m)
 {
-    m.def("sim_gillespie", &sim_gillespie, "simulate CME using gillespie");
+    m.def("sim_gillespie", &sim_gillespie, "Simulate CME using gillespie");
     // m.def("sim_tauleaping", &sim_tauleaping, "simulate CME using tau leaping");
 }
