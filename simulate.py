@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 import scipy.integrate as integrate
 
-from reactions import CmeParameters
+from reactions import CmeParameters, OdeParameters
 import libsimbackend
 
 # Set up custom types for hinting
@@ -21,17 +21,24 @@ npVec_f64 = Type[np.ndarray[np.float64, np.ndim(1)]]
 
 # wrapper for the ode model
 def simulate_ode(
-        ODE_model:      Callable, 
+        ode_param:      OdeParameters, 
         time_points:    np.ndarray,
-        start_state:    list,
+        start_state:    np.ndarray,
         ) ->            np.ndarray:
+    '''take a set of ODE parameters, and execute the corresponding program to simulate the system'''
     
+    # Execute the source code corresponding to the Ode Model to generate a callable model
+    global ODE_model
+    ODE_model = None
+    exec(ode_param.ode_program_text)
+
+    # Use scipy to solve the corresponding IVP
     sol = integrate.solve_ivp(
         ODE_model, 
         [0, time_points[-1]], 
         start_state, 
         t_eval=time_points, 
-        method = 'LSODA'  # eq system is mostly stiff, needs a solver that can handle such cases
+        method = 'LSODA'  # Eq system is mostly stiff, needs a solver that can handle such cases
         ) 
     
     return sol.y
