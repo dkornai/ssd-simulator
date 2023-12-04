@@ -222,7 +222,7 @@ class CmeParameters():
         for i, reaction in enumerate(networkreactions.reactions):
             self.birthrates[i]       = reaction.birthrate
             self.targetpops[i]       = reaction.targetpop
-            self.controlstrengths[i] = reaction.targetpop
+            self.controlstrengths[i] = reaction.controlstrength
             self.deltas[i]           = reaction.delta
 
     def __str__(self) -> str:
