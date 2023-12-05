@@ -65,12 +65,13 @@ def gillespie_wrapper(
         const   npVec_f64       IbirthRates,                   
         const   npVec_f64       ItargetPops,
         const   npVec_f64       IcontrolStrenghts,
-        const   npVec_f64       Ideltas   
+        const   npVec_f64       Ideltas,
+        const   npVec_f64       IbasalBirthRate      
         )
     '''
 
     # Unpack tuple of variables
-    timePoints, stateVec, reactionMatrix, percapReactionRates, reactionStateVecIndex, dynBirthStateVecIndex, birthRates, targetPops, controlStrenghts, deltas = cme_paramtuple
+    timePoints, stateVec, reactionMatrix, percapReactionRates, reactionStateVecIndex, dynBirthStateVecIndex, birthRates, targetPops, controlStrenghts, deltas, basalBirthRate = cme_paramtuple
     
     # Create arrays which will be modified in place
     stateVecSample  = np.zeros((timePoints.size, stateVec.size), dtype = np.int32, order = 'F')
@@ -87,7 +88,8 @@ def gillespie_wrapper(
         birthRates, 
         targetPops, 
         controlStrenghts, 
-        deltas
+        deltas,
+        basalBirthRate
         )
 
     # Transpose results and return 
@@ -101,6 +103,9 @@ def simulate_gillespie(
         replicates:     int = 100,
         n_cpu:          int = 0,
         ) ->            np.ndarray:
+
+    if start_state.size != cme_param.reaction_matrix.shape[1]:
+        raise ValueError("State vector and Reaction Matrix sizes do not match!")
 
     # Create array for output
     replicate_results   = np.zeros((replicates, len(start_state), time_points.size), dtype = np.int32)
@@ -116,6 +121,7 @@ def simulate_gillespie(
     targetPops              = np.array(cme_param.targetpops,                    dtype=np.float64)
     controlStrenghts        = np.array(cme_param.controlstrengths,              dtype=np.float64)
     deltas                  = np.array(cme_param.deltas,                        dtype=np.float64)
+    basalBirthRate          = np.array(cme_param.basalbirthrates,               dtype=np.float64)
 
     # If the number of cpus is not specified, use all cores
     if n_cpu == 0:
@@ -127,7 +133,19 @@ def simulate_gillespie(
 
     with Pool(n_cpu) as pool:
         # prepare arguments as list of tuples
-        param = [(timePoints, stateVec, reactionMatrix, percapReactionRates, reactionStateVecIndex, dynBirthStateVecIndex, birthRates, targetPops, controlStrenghts, deltas) for _ in range(replicates)]
+        param = [(
+            timePoints, 
+            stateVec, 
+            reactionMatrix, 
+            percapReactionRates, 
+            reactionStateVecIndex, 
+            dynBirthStateVecIndex, 
+            birthRates, 
+            targetPops, 
+            controlStrenghts, 
+            deltas,
+            basalBirthRate) 
+            for _ in range(replicates)]
         
         # make list that unordered results will be deposited to
         pool_results = []

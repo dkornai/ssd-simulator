@@ -86,7 +86,8 @@ void sim_gillespie(
     const   npVec_f64       IbirthRates,                   
     const   npVec_f64       ItargetPops,
     const   npVec_f64       IcontrolStrenghts,
-    const   npVec_f64       Ideltas   
+    const   npVec_f64       Ideltas,
+    const   npVec_f64       IbasalBirthRate   
     )
 {
 
@@ -103,6 +104,7 @@ void sim_gillespie(
     const   DoubleVec       targetPops              = get_double_vec_from_np(ItargetPops);
     const   DoubleVec       controlStrenghts        = get_double_vec_from_np(IcontrolStrenghts);
     const   DoubleVec       deltas                  = get_double_vec_from_np(Ideltas);
+    const   DoubleVec       basalBirthRate          = get_double_vec_from_np(IbasalBirthRate);
     
     // Counts often accessed during loops
     const   int             n_timePoints            = timePoints.size();
@@ -124,8 +126,8 @@ void sim_gillespie(
             // Calculate dynamic birth rates in nodes with active birthRates control,
             // avoiding negative values, and set corresponding reaction rates
             for (int svi : dynBirthStateVecIndex) {
-                percapReactionRates[svi] = percapReactionRates[svi+1] 
-                = std::max(0.0, birthRates[svi]+controlStrenghts[svi]*(targetPops[svi]-stateVec[svi]-(deltas[svi]*stateVec[svi+1]))); 
+                percapReactionRates[svi]    = (std::max(0.0, birthRates[svi]+controlStrenghts[svi]*(targetPops[svi]-stateVec[svi]-(deltas[svi]*stateVec[svi+1]))) + basalBirthRate[svi]);
+                percapReactionRates[svi+1]  = (std::max(0.0, birthRates[svi]+controlStrenghts[svi]*(targetPops[svi]-stateVec[svi]-(deltas[svi]*stateVec[svi+1]))) + basalBirthRate[svi+1]);
             }
             
             // Calculate global reaction propensity by multiplyin per capita rates 

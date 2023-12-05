@@ -5,14 +5,13 @@ import numpy as np
 
 class Node():
     '''base Node class (currently empty)'''
-    def __init__(self, startpop):
-        self.startpop = startpop
+    def __init__(self):
         self.id = None
 
 class ConstantBirthNode(Node):
     '''Node with births ocurring at constant (possibly zero) rate'''
-    def __init__(self, startpop:int, deathrate:float, birthrate:float):
-        super().__init__(startpop)
+    def __init__(self, deathrate:float, birthrate:float):
+        super().__init__()
         self.deathrate = deathrate
         self.birthrate = birthrate
 
@@ -21,8 +20,8 @@ class ConstantBirthNode(Node):
 
 class DynamicBirthNode(Node):
     '''Node with dynamic birth rates targeting a given population size'''
-    def __init__(self, startpop:int, deathrate:float, birthrate:float, targetpop:int, controlstrength:float, delta:float):
-        super().__init__(startpop)
+    def __init__(self, deathrate:float, birthrate:float, targetpop:int, controlstrength:float, delta:float):
+        super().__init__()
         self.deathrate = deathrate
         self.birthrate = birthrate
         self.targetpop = targetpop
@@ -36,6 +35,8 @@ class Network(nx.DiGraph):
     '''class used to hold the network of Nodes'''
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.replicative_advantage = None
+        self.slower_advantage = None
         self.extra_attributes = kwargs  # Store extra attributes in a dictionary
 
     def add_node(self, node, **attr):
@@ -53,6 +54,12 @@ class Network(nx.DiGraph):
     def add_transport(self, source_node, dest_node, **attr):
         '''add a transport reaction between two nodes'''
         
+        if source_node not in list(self.nodes):
+            raise ValueError("Source node not in the network!")
+        
+        if dest_node not in list(self.nodes):
+            raise ValueError("Destination node not in the network!")
+
         if 'rate' not in attr:
             raise ValueError("Edge must have a 'rate' attribute")
         
@@ -63,3 +70,19 @@ class Network(nx.DiGraph):
         
         for i, node in enumerate(self.nodes):
             node.id = i
+
+    def set_replicative_advantage(self, advantage:float):
+        '''configure replicative advantage for entity type 1'''
+
+        if self.slower_advantage != None:
+            raise ValueError("System cannot have replicative advantage and slower advantage at the same time!")
+        self.replicative_advantage = advantage
+    
+    def set_slower_advantage(self, advantage:float):
+        '''configure an increase in the birthrate and deathrate of entity type 0, leading to an advantage for entity type 1'''
+
+        if self.replicative_advantage != None:
+            raise ValueError("System cannot have slower advantage and replicative advantage at the same time!")
+        self.slower_advantage = advantage
+
+    

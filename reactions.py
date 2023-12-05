@@ -6,12 +6,14 @@ import numpy as np
 
 class Reaction():
     '''base reaction class, only attribute is the node at which the reaction is ocurring'''
-    def __init__(self, node:Node, etype:int, rate:float):
+    def __init__(self, node:Node, etype:int, rate:float, offset:float=0):
         self.node = node
         self.etype = etype # Entity type index
         self.rate = rate # Generic reaction rate
         self.varnamestr = f'n{node.id}_t{etype}'
         self.statevecindex = node.id*2 + etype # Which element of the statevector the reaction is applied to
+
+        self.offset = offset # used to handle a constant basal rate for dynamic functions
 
         # These variables are set to 0 by default for all reactions, and are only changed for dynamic birth reactions
         self.birthrate = 0
@@ -24,8 +26,8 @@ class Reaction():
 
 class DeathReaction(Reaction):
     '''death reactions occur at a given node with a given static rate'''
-    def __init__(self, node:Node, etype:int, deathrate:float):
-        super().__init__(node, etype, rate=deathrate)
+    def __init__(self, node:Node, etype:int, deathrate:float, offset:float=0):
+        super().__init__(node, etype, rate=deathrate+offset) # Death rate is increased by the offset
 
     def __str__(self) -> str:
         return f'DeathReaction({self.varnamestr}, rate: {self.rate})'
@@ -38,8 +40,8 @@ class DeathReaction(Reaction):
 
 class ConstantBirthReaction(Reaction):
     '''static birth reactions occur at a given node with a given static rate'''
-    def __init__(self, node:Node, etype:int, birthrate:float):
-        super().__init__(node, etype, rate=birthrate)
+    def __init__(self, node:Node, etype:int, birthrate:float, offset:float=0):
+        super().__init__(node, etype, rate=birthrate+offset) # Birth rate is increased by the offset
 
     def __str__(self) -> str:
         return f'BirthReaction({self.varnamestr}, rate: {self.rate})'
@@ -53,8 +55,8 @@ class ConstantBirthReaction(Reaction):
         
 class DynamicBirthReaction(Reaction):
     '''static birth reactions occur at a given node with a given static rate'''
-    def __init__(self, node:Node, etype:int, birthrate:float, targetpop:int, controlstrength:float, delta:float):
-        super().__init__(node, etype, rate=-1)
+    def __init__(self, node:Node, etype:int, birthrate:float, targetpop:int, controlstrength:float, delta:float, offset:float=0):
+        super().__init__(node, etype, rate=-1, offset=offset)
         self.birthrate = birthrate
         self.targetpop = targetpop
         self.controlstrength = controlstrength
@@ -63,7 +65,7 @@ class DynamicBirthReaction(Reaction):
         self.etype_1_varnamestr = f'n{node.id}_t1'
 
     def __str__(self) -> str:
-        return f'BirthReaction({self.varnamestr}, rate: Dynamic)'
+        return f'BirthReaction({self.varnamestr}, rate: {str(self.offset)+"+" if self.offset != 0 else ""}dynamic rate)'
     
     def statevec_update(self, statevec):
         '''update to the state vector corresponding to the reaction'''
@@ -95,10 +97,25 @@ class Reactions():
     
     def __init__(self, network:Network):
         '''initilise by going through the nodes and edges of a given network to collect birth, death, and transport reactions'''
-        
+
         # Initilize the empty state vector, which will hold the number of particles in each node
         self.statevec = np.zeros(network.number_of_nodes()*2, dtype=np.int32) # *2 due to allocation for two types of entities at each node
+        self.n_vars = self.statevec.size
 
+        # Collect any birth offsets if required
+        birth_offset = [0,0]
+        
+        if   network.replicative_advantage != None: # If there is a replicative advantage, the entity type 1 has a faster birth rate
+            birth_offset[1] = network.replicative_advantage
+        elif network.slower_advantage != None:  # If there is a slower advantage, the entity type 0 has a faster birth and death rate
+            birth_offset[0] = network.slower_advantage
+
+        # Collect any death offsets if required
+        death_offset = [0, 0]
+        if   network.slower_advantage != None:  # If there is a slower advantage, the entity type 0 has a faster birth and death rate
+            death_offset[0] = network.slower_advantage
+        
+        
         # Start collecting the reactions
         self.reactions = []
 
@@ -108,18 +125,18 @@ class Reactions():
                 for etype in range(2): # Iterate through both entity types, adding reactions for each 
                     if type(node) is ConstantBirthNode:
                         
-                        self.reactions.append(ConstantBirthReaction(node, etype, node.birthrate))
+                        self.reactions.append(ConstantBirthReaction(node, etype, node.birthrate, offset=birth_offset[etype]))
                         
                     elif type(node) is DynamicBirthNode:
                         
-                        self.reactions.append(DynamicBirthReaction(node, etype, node.birthrate, node.targetpop, node.controlstrength, node.delta))
+                        self.reactions.append(DynamicBirthReaction(node, etype, node.birthrate, node.targetpop, node.controlstrength, node.delta, offset=birth_offset[etype]))
 
         # Add death reactions if there is a nonzero death rate
         for node in network.nodes:
             if node.deathrate > 0:
                 for etype in range(2): # Iterate through both entity types, adding reactions for each 
                         
-                        self.reactions.append(DeathReaction(node, etype, node.deathrate))
+                        self.reactions.append(DeathReaction(node, etype, node.deathrate, offset=death_offset[etype]))
 
         # Add transport reactions if there is a nonzero rate
         for source_node, dest_node, data in network.edges(data=True):
@@ -214,16 +231,19 @@ class CmeParameters():
         self.dynamic_birth_statevec_index = np.array(self.dynamic_birth_statevec_index, dtype=np.int32)
 
         # These are the parameters that are used to update dynamic birthrates (will have 0 values for all other reaction types)
-        self.birthrates          = np.zeros(networkreactions.n_reactions, dtype=np.float64)     
-        self.targetpops          = np.zeros(networkreactions.n_reactions, dtype=np.float64)    
-        self.controlstrengths    = np.zeros(networkreactions.n_reactions, dtype=np.float64)    
-        self.deltas              = np.zeros(networkreactions.n_reactions, dtype=np.float64) 
+        self.birthrates          = np.zeros(networkreactions.n_vars, dtype=np.float64)     
+        self.targetpops          = np.zeros(networkreactions.n_vars, dtype=np.float64)    
+        self.controlstrengths    = np.zeros(networkreactions.n_vars, dtype=np.float64)    
+        self.deltas              = np.zeros(networkreactions.n_vars, dtype=np.float64)
+        self.basalbirthrates     = np.zeros(networkreactions.n_vars, dtype=np.float64)
 
         for i, reaction in enumerate(networkreactions.reactions):
-            self.birthrates[i]       = reaction.birthrate
-            self.targetpops[i]       = reaction.targetpop
-            self.controlstrengths[i] = reaction.controlstrength
-            self.deltas[i]           = reaction.delta
+            if type(reaction) is DynamicBirthReaction:
+                self.birthrates[i]       = reaction.birthrate
+                self.targetpops[i]       = reaction.targetpop
+                self.controlstrengths[i] = reaction.controlstrength
+                self.deltas[i]           = reaction.delta
+                self.basalbirthrates[i]  = reaction.offset
 
     def __str__(self) -> str:
         txt = ''
@@ -235,6 +255,7 @@ class CmeParameters():
         txt += f'{str(self.targetpops)}\n'
         txt += f'{str(self.controlstrengths)}\n'
         txt += f'{str(self.deltas)}\n'
+        txt += f'{str(self.basalbirthrates)}\n'
         return txt
     
 
@@ -257,7 +278,7 @@ def get_ode_term(
         
         # Dynamic birth reactions have a more complicated term
         elif type(br) == DynamicBirthReaction:
-            birth_term += f'+{varname}*np.max([0, {br.birthrate}+{br.controlstrength}*({br.targetpop}-{br.etype_0_varnamestr}-({br.delta}*{br.etype_1_varnamestr}))]) '
+            birth_term += f'+{varname}*(np.max([0, {br.birthrate}+{br.controlstrength}*({br.targetpop}-{br.etype_0_varnamestr}-({br.delta}*{br.etype_1_varnamestr}))])+{br.offset}) '
 
     # Term corresponding to deaths
     death_term = ''
