@@ -82,7 +82,10 @@ class TransportReaction(Reaction):
         self.dest_varnamestr = f'n{dest_node.id}_t{etype}' # Add the variable name for the destination node
 
     def __str__(self) -> str:
-        return f'TransportReaction(from: {self.varnamestr}, to: {self.dest_varnamestr},  rate: {self.rate})'
+        return f'TransportReaction({self.varnamestr} -> {self.dest_varnamestr}, rate: {self.rate})'
+    
+    def __repr__(self) -> str:
+        return f'TransportReaction({self.varnamestr} -> {self.dest_varnamestr}, rate: {self.rate})'
     
     def statevec_update(self, statevec):
         '''update to the state vector corresponding to the reaction'''
@@ -267,7 +270,7 @@ def get_ode_term(
         transport_in_reaction:List[TransportReaction]
         ) -> str:
     '''from the set of reactions ocurring on a given variable, get the corresponding term in the ode'''
-    
+
     # Term corresponding to births
     birth_term = '' 
     if len(birth_reaction) == 1:
@@ -297,7 +300,7 @@ def get_ode_term(
     transport_in_term = ''
     if len(transport_in_reaction) > 0:
         transport_in_term += f'+('
-        for reaction in transport_out_reaction:
+        for reaction in transport_in_reaction:
             transport_in_term += f'+{reaction.dest_varnamestr}*{reaction.rate}'
         transport_in_term += ') '
 
@@ -307,14 +310,15 @@ def get_ode_term(
 
     # Generate the corresponding comment term, with useful annotations
     comment_term = f'# Δ{varname}/Δt\t'
-    if birth_term != '': 
+    if birth_term           != '': 
         comment_term += f'<birth>{" "*(len(birth_term)-7)}'
-    if death_term != '':
+    if death_term           != '':
         comment_term += f'<death>{" "*(len(death_term)-7)}'
-    if transport_in_term != '':
+    if transport_out_term   != '':
         comment_term += f'<outflow>{" "*(len(transport_out_term)-9)}'
-    if transport_out_term != '':
+    if transport_in_term    != '':
         comment_term += f'<inflow>'
+    
     comment_term += '\n'
     
     return comment_term+ode_term
